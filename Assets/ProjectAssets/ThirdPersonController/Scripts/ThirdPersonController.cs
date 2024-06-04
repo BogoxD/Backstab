@@ -89,15 +89,27 @@ namespace StarterAssets
         private float _terminalVelocity = 53.0f;
 
         // player state
-        private enum PlayerState
+        private enum PlayerAttackState
         {
             Idle,
-            Walking,
             Attacking,
             Backstabing
         }
 
-        PlayerState _currentState = PlayerState.Idle;
+        [Header("Player State")]
+        [SerializeField] PlayerAttackState _currentState = PlayerAttackState.Idle;
+        [Header("Attack")]
+        [SerializeField] float attackRange = 2f;
+        [SerializeField] LayerMask enemyMask;
+
+        [Header("Backstab")]
+        [SerializeField] float backstabOffset = 0.1f;
+        [SerializeField] float backstabDistance = 1f;
+        [SerializeField] float backstabAngle = 35f;
+
+        [Header("Backstep")]
+        [SerializeField] Transform direction;
+        [SerializeField] float backStepForce = 2f;
 
         // attack
         private bool canAttack = true;
@@ -122,8 +134,7 @@ namespace StarterAssets
         private CharacterController _controller;
         private StarterAssetsInputs _input;
         private GameObject _mainCamera;
-
-        [SerializeField] private EnemyCharacter enemy;
+        private EnemyCharacter enemy;
 
         private const float _threshold = 0.01f;
 
@@ -174,16 +185,22 @@ namespace StarterAssets
         {
             _hasAnimator = TryGetComponent(out _animator);
 
-            JumpAndGravity();
+            //set states on input
+
             GroundedCheck();
-            Move();
             Attack();
 
+            if (_currentState != PlayerAttackState.Backstabing)
+            {
+                JumpAndGravity();
+                Move();
+            }
         }
 
         private void LateUpdate()
         {
             CameraRotation();
+            PickClosestEnemy();
         }
 
         private void AssignAnimationIDs()
@@ -308,19 +325,23 @@ namespace StarterAssets
                 Vector3 dirFromEnemyToPlayer = (transform.position - enemy.transform.position).normalized;
 
                 float dot = Vector3.Dot(enemy.transform.forward, dirFromEnemyToPlayer);
-                float backstabOffset = 0.1f;
-                float backstabDistance = 1f;
-                float backstabAngle = 35f;
 
                 if (dot < -1 + backstabOffset && Vector3.Distance(transform.position, enemy.transform.position) < backstabDistance
                     && Vector3.Angle(transform.forward, enemy.transform.forward) < backstabAngle)
                 {
                     //change player state
-                    _currentState = PlayerState.Backstabing;
+                    _currentState = PlayerAttackState.Backstabing;
 
                     //backstab
                     //play animations
                     _animator.SetBool(_animBackstab, true);
+
+                    //lerp enemy pos and look to player
+                    enemy.transform.position = Vector3.Lerp(transform.position, enemy.transform.position, 2f);
+                    enemy.transform.forward = transform.forward;
+
+                    //lerp player position to enemy
+                    transform.position = Vector3.Lerp(transform.position, transform.position + dirFromEnemyToPlayer * .7f ,Time.deltaTime * 10f);
 
                     enemy.TakeDamage(50);
                     enemy.PlayBackStabVictimAnim();
@@ -328,50 +349,88 @@ namespace StarterAssets
                 else
                 {
                     //change player state
-                    _currentState = PlayerState.Attacking;
-
-                    //normal attack
-                    //play animations
+                    _currentState = PlayerAttackState.Attacking;
                     _animator.SetBool(_animAttack, true);
 
+                    if (enemy)
+                    {
+                        if (enemy.collidedWithSword || Physics.Raycast(transform.position, transform.forward, attackRange, enemyMask))
+                        {
+                            //normal attack
+                            enemy.TakeDamage(50);
+                            enemy.TakeDamageAnimation();
+                        }
+                    }
                 }
-                StartCoroutine("AttackReset");
-            }
 
+                StartCoroutine(nameof(AttackReset));
+            }
         }
+
         IEnumerator AttackReset()
         {
             canAttack = false;
             float _attackDuration;
 
-            if (_currentState == PlayerState.Backstabing)
+            switch (_currentState)
             {
-                _attackDuration = _animator.GetCurrentAnimatorClipInfo(_animBackstab).Length;
+                case PlayerAttackState.Backstabing:
 
-                yield return new WaitForSeconds(_attackDuration);
+                    _playerInput.enabled = false;
+                    _attackDuration = _animator.GetCurrentAnimatorClipInfo(_animBackstab).Length;
 
-                _animator.SetBool(_animBackstab, false);
+                    yield return new WaitForSeconds(_attackDuration);
+
+                    _animator.SetBool(_animBackstab, false);
+
+                    break;
+
+                case PlayerAttackState.Attacking:
+
+                    _attackDuration = _animator.GetCurrentAnimatorClipInfo(_animAttack).Length;
+
+                    yield return new WaitForSeconds(_attackDuration);
+
+                    _animator.SetBool(_animAttack, false);
+
+                    break;
+
             }
-            else if (_currentState == PlayerState.Attacking)
-            {
-                _attackDuration = _animator.GetCurrentAnimatorClipInfo(_animAttack).Length;
 
-                yield return new WaitForSeconds(_attackDuration);
 
-                _animator.SetBool(_animAttack, false);
-            }
+            yield return new WaitForSeconds(2);
+
             //change state back to idle
-            _currentState = PlayerState.Idle;
+            _currentState = PlayerAttackState.Idle;
 
-            //reset attack input
-            canAttack = true;
+            _playerInput.enabled = true;
             _input.attack = false;
-        }
+            canAttack = true;
 
+        }
+        private void PickClosestEnemy()
+        {
+            Collider[] colliders = Physics.OverlapSphere(transform.position, 100f, enemyMask);
+
+            if(colliders.Length > 0)
+            {
+                enemy = colliders[0].GetComponent<EnemyCharacter>();
+
+                foreach(Collider collider in colliders)
+                {
+                    float dist = Vector3.Distance(transform.position, collider.transform.position);
+
+                    if(dist < Vector3.Distance(transform.position, enemy.transform.position))
+                    {
+                        enemy = collider.GetComponent<EnemyCharacter>();
+                    }
+                }
+            }
+        }
         private void SetTargetForward(Vector3 targetForward)
         {
             Vector3 cameraForward = Camera.main.transform.forward;
-            
+
         }
         private void JumpAndGravity()
         {
@@ -461,6 +520,7 @@ namespace StarterAssets
             Gizmos.DrawSphere(
                 new Vector3(transform.position.x, transform.position.y - GroundedOffset, transform.position.z),
                 GroundedRadius);
+
         }
 
         private void OnFootstep(AnimationEvent animationEvent)

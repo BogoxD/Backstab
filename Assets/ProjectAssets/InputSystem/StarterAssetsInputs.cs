@@ -13,6 +13,7 @@ namespace StarterAssets
 		public bool jump;
 		public bool sprint;
 		public bool attack;
+		public bool backstep;
 
 		[Header("Movement Settings")]
 		public bool analogMovement;
@@ -49,6 +50,10 @@ namespace StarterAssets
         {
 			AttackInput(value.isPressed);
         }
+		public void OnBackstep(InputValue value)
+        {
+			BackstepInput(value.isPressed);
+        }
 #endif
 
 
@@ -75,6 +80,10 @@ namespace StarterAssets
 		public void AttackInput(bool newAttackState)
         {
 			attack = newAttackState;
+        }
+		public void BackstepInput(bool newBackstepState)
+        {
+			backstep = newBackstepState;
         }
 
 		private void OnApplicationFocus(bool hasFocus)

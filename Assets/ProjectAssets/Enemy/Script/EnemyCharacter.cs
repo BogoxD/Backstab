@@ -7,7 +7,10 @@ public class EnemyCharacter : MonoBehaviour
     private StarterAssets.ThirdPersonController _player;
     private Animator _animator;
     private int maxHealth = 100;
-    private int currentHealth;
+    public int currentHealth;
+    
+    private bool once = true;
+    public bool collidedWithSword = false;
 
     void Start()
     {
@@ -16,10 +19,22 @@ public class EnemyCharacter : MonoBehaviour
 
         currentHealth = maxHealth;
     }
+    private void Update()
+    {
+        if (currentHealth <= 0 && once)
+        {
+            gameObject.GetComponent<CapsuleCollider>().enabled = false;
+            once = false;
+        }
+    }
 
     public void PlayBackStabVictimAnim()
     {
         _animator.Play("Backstab_Victim");
+    }
+    public void TakeDamageAnimation()
+    {
+        _animator.Play("Parry_Parried");
     }
     public void TakeDamage(int ammount)
     {
@@ -29,5 +44,19 @@ public class EnemyCharacter : MonoBehaviour
     public int GetCurrentHealth()
     {
         return currentHealth;
+    }
+    private void OnCollisionEnter(Collision collision)
+    {
+        if(collision.collider.CompareTag("Sword"))
+        {
+            collidedWithSword = true;
+        }
+    }
+    private void OnCollisionExit(Collision collision)
+    {
+        if (collision.collider.CompareTag("Sword"))
+        {
+            collidedWithSword = false;
+        }
     }
 }
