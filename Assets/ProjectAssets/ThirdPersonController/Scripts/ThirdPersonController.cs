@@ -340,8 +340,10 @@ namespace StarterAssets
                     enemy.transform.position = Vector3.Lerp(transform.position, enemy.transform.position, 2f);
                     enemy.transform.forward = transform.forward;
 
+                    Vector3 dirToEnemy = (enemy.transform.position - transform.position).normalized;
+
                     //lerp player position to enemy
-                    transform.position = Vector3.Lerp(transform.position, transform.position + dirFromEnemyToPlayer * .7f ,Time.deltaTime * 10f);
+                    transform.position = Vector3.Lerp(transform.position, transform.position + dirToEnemy * .7f , Time.deltaTime * 10f);
 
                     enemy.TakeDamage(50);
                     enemy.PlayBackStabVictimAnim();
@@ -354,7 +356,8 @@ namespace StarterAssets
 
                     if (enemy)
                     {
-                        if (enemy.collidedWithSword || Physics.Raycast(transform.position, transform.forward, attackRange, enemyMask))
+                        if (Vector3.Distance(transform.position, enemy.transform.position) < attackRange &&
+                            Vector3.Angle(transform.forward, enemy.transform.position) < 90 / 2)
                         {
                             //normal attack
                             enemy.TakeDamage(50);
